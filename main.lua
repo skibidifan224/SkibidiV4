@@ -12,14 +12,6 @@ if type(args) == "table" and args.Username then
 	shared.ValidatedUsername = args.Username
 end
 
-if type(args) == "table" and args.Closet then
-	getgenv().Closet = true
-else
-	if getgenv().Closet == nil then
-		getgenv().Closet = false
-	end
-end
-
 local vape
 local loadstring = function(...)
 	local res, err = loadstring(...)
@@ -66,105 +58,6 @@ local function downloadFile(path, func)
 	end
 	return (func or readfile)(path)
 end
-
-local function migrateProfiles()
-	if isfile('newvape/profiles/migrated_placeid.txt') then return end
-
-    local oldId = tostring(game.GameId)
-    local newId = tostring(game.PlaceId)
-
-	if oldId == newId then
-		pcall(writefile, 'newvape/profiles/migrated_placeid.txt', 'done')
-		return
-	end
-
-	local suffix = oldId .. '.txt'
-	for _, path in ipairs(listfiles('newvape/profiles')) do
-		local name = path:gsub('\\', '/')
-		if name:sub(-#suffix) == suffix then
-			local newPath = name:sub(1, -#suffix - 1) .. newId .. '.txt'
-			if not isfile(newPath) then
-				pcall(function() writefile(newPath, readfile(path)) end)
-			end
-		end
-	end
-
-	if isfolder('newvape/profiles/premade') then
-		for _, path in ipairs(listfiles('newvape/profiles/premade')) do
-			local name = path:gsub('\\', '/')
-			if name:sub(-#suffix) == suffix then
-				local newPath = name:sub(1, -#suffix - 1) .. newId .. '.txt'
-				if not isfile(newPath) then
-					pcall(function() writefile(newPath, readfile(path)) end)
-				end
-			end
-		end
-	end
-
-	pcall(writefile, 'newvape/profiles/migrated_placeid.txt', 'done')
-end
-
-pcall(migrateProfiles)
-
---[[ ===== ANTILAG PERFORMANCE MODULE ===== ]]
-local antilag = {}
-local RunService = cloneref(game:GetService('RunService'))
-local antilagState = shared.R12SAAntilagState or {
-	deltaTime = 0,
-	lastFrameTime = tick(),
-	renderFrameCount = 0,
-	running = false
-}
-shared.R12SAAntilagState = antilagState
-
--- Anti-lag config
-local ANTILAG_CONFIG = {
-	MAX_FRAME_TIME = 0.05, -- cap frame time at 50ms to prevent 2.3 FPS drops
-	RENDER_THROTTLE = 0.016,
-}
-
--- Frame time monitoring (detects and prevents lag spikes)
-if not antilagState.running then
-	antilagState.running = true
-	task.spawn(function()
-		while antilagState.running do
-			local currentTime = tick()
-			antilagState.deltaTime = math.min(currentTime - antilagState.lastFrameTime, ANTILAG_CONFIG.MAX_FRAME_TIME)
-			antilagState.lastFrameTime = currentTime
-			RunService.RenderStepped:Wait()
-			antilagState.renderFrameCount = antilagState.renderFrameCount + 1
-		end
-	end)
-end
-
-function antilag.GetFrameTime()
-	return antilagState.deltaTime
-end
-
-function antilag.GetFPS()
-	return 1 / math.max(antilagState.deltaTime, 0.001)
-end
-
-function antilag.ThrottledWait(customInterval)
-	local interval = customInterval or 0.016
-	local adjustedInterval = math.max(interval, antilagState.deltaTime)
-	if adjustedInterval > 0 then
-		task.wait(adjustedInterval)
-	else
-		RunService.RenderStepped:Wait()
-	end
-end
-
-function antilag.GetStatus()
-	return {
-		fps = antilag.GetFPS(),
-		frameTime = antilagState.deltaTime,
-		renderFrames = antilagState.renderFrameCount,
-	}
-end
-
-getgenv().antilag = antilag
-shared.antilag = antilag
 
 local function finishLoading()
 	vape.Init = nil
@@ -261,35 +154,11 @@ if not vape.Init and not vape.Load then
 	error('[R12SA V4] failed to initialize properly reinject to fix this bs')
 end
 shared.vape = vape
-vape:Clean(function()
-	antilagState.running = false
-end)
 task.wait(0.1)
-
-if getgenv().Closet then
-	local LogService = cloneref(game:GetService('LogService'))
-	local originals = {}
-	local function hook(funcName)
-		if typeof(getgenv()[funcName]) == 'function' then
-			local original = hookfunction(getgenv()[funcName], function() end)
-			originals[funcName] = original
-		end
-	end
-	hook('print')
-	hook('warn')
-	hook('error')
-	hook('info')
-	pcall(function() LogService:ClearOutput() end)
-	local conn = LogService.MessageOut:Connect(function()
-		LogService:ClearOutput()
-	end)
-	getgenv()._vape_log_connection = conn
-	getgenv()._vape_originals = originals
-end
 
 if not shared.VapeIndependent then
 	loadstring(downloadFile('newvape/games/universal.lua'), 'universal')()
-	local gameFileId = (game.GameId == 2619619496) and (game.PlaceId == 6872265039 and 6872265039 or 6872274481) or game.PlaceId
+	local gameFileId = game.PlaceId
 	if isfile('newvape/games/' .. gameFileId .. '.lua') then
 		loadstring(downloadFile('newvape/games/' .. gameFileId .. '.lua'), tostring(gameFileId))(...)
 	else
