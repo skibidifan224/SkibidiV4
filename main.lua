@@ -12,6 +12,14 @@ if type(args) == "table" and args.Username then
 	shared.ValidatedUsername = args.Username
 end
 
+if type(args) == "table" and args.Closet then
+	getgenv().Closet = true
+else
+	if getgenv().Closet == nil then
+		getgenv().Closet = false
+	end
+end
+
 local vape
 local loadstring = function(...)
 	local res, err = loadstring(...)
@@ -59,6 +67,182 @@ local function downloadFile(path, func)
 	return (func or readfile)(path)
 end
 
+--[[ ===== CLOSET MODE SYSTEM ===== ]]
+local closetMode = {}
+closetMode.enabled = getgenv().Closet or false
+closetMode.presets = {
+	-- Closet preset: Legitimate looking but competitive
+	closet = {
+		aimbotEnabled = true,
+		aimbotFOV = 25, -- Smaller FOV looks more natural
+		aimbotSmoothing = 0.8, -- High smoothing for natural movement
+		aimbotPrediction = true,
+		triggerbot = false, -- Too obvious
+		esp = false, -- Completely disabled for legitimacy
+		wallhack = false,
+		speedEnabled = false, -- Too obvious
+		nofall = false,
+		nowater = false,
+		flight = false,
+		hitboxExpander = false,
+		reachLimit = 3.5, -- Subtle reach increase
+		killAura = false, -- Way too obvious
+		nametags = false,
+		tracers = false,
+		healthbars = false,
+		blatantSettings = false,
+		recoilCompensation = 0.5, -- Subtle recoil smoothing
+		mouseSensitivity = 1.0, -- Natural sensitivity
+		humanoidRotation = 0.3, -- Subtle head jitter
+	},
+	-- Blatant preset: Full power mode
+	blatant = {
+		aimbotEnabled = true,
+		aimbotFOV = 180,
+		aimbotSmoothing = 0.2,
+		aimbotPrediction = true,
+		triggerbot = true,
+		esp = true,
+		wallhack = true,
+		speedEnabled = true,
+		nofall = true,
+		nowater = true,
+		flight = true,
+		hitboxExpander = true,
+		reachLimit = 10,
+		killAura = true,
+		nametags = true,
+		tracers = true,
+		healthbars = true,
+		blatantSettings = true,
+		recoilCompensation = 1.0,
+		mouseSensitivity = 2.0,
+		humanoidRotation = 1.0,
+	}
+}
+
+function closetMode.applyPreset(presetName)
+	if not closetMode.presets[presetName] then
+		warn('[R12SA V4] Invalid closet preset: ' .. presetName)
+		return false
+	end
+	
+	local preset = closetMode.presets[presetName]
+	
+	-- Store original settings if not already stored
+	if not shared.vapeOriginalSettings then
+		shared.vapeOriginalSettings = {}
+	end
+	
+	-- Apply preset settings to all modules
+	for setting, value in pairs(preset) do
+		shared.vapeOriginalSettings[setting] = shared.vapeOriginalSettings[setting] or value
+		
+		-- Store in global environment for access by modules
+		getgenv()[setting] = value
+		shared[setting] = value
+	end
+	
+	-- Apply to vape settings if vape is loaded
+	if shared.vape and shared.vape.Categories then
+		pcall(function()
+			-- Combat settings
+			local combat = shared.vape.Categories.Combat
+			if combat and combat.Options then
+				if combat.Options['Aimbot'] then
+					combat.Options['Aimbot'].Enabled = preset.aimbotEnabled
+				end
+				if combat.Options['Aimbot FOV'] then
+					combat.Options['Aimbot FOV'].Value = preset.aimbotFOV
+				end
+				if combat.Options['Aimbot Smoothing'] then
+					combat.Options['Aimbot Smoothing'].Value = preset.aimbotSmoothing
+				end
+				if combat.Options['Prediction'] then
+					combat.Options['Prediction'].Enabled = preset.aimbotPrediction
+				end
+				if combat.Options['Triggerbot'] then
+					combat.Options['Triggerbot'].Enabled = preset.triggerbot
+				end
+				if combat.Options['Reach'] then
+					combat.Options['Reach'].Value = preset.reachLimit
+				end
+			end
+			
+			-- Visuals settings
+			local visuals = shared.vape.Categories.Visuals
+			if visuals and visuals.Options then
+				if visuals.Options['ESP'] then
+					visuals.Options['ESP'].Enabled = preset.esp
+				end
+				if visuals.Options['Wallhack'] then
+					visuals.Options['Wallhack'].Enabled = preset.wallhack
+				end
+				if visuals.Options['Nametags'] then
+					visuals.Options['Nametags'].Enabled = preset.nametags
+				end
+				if visuals.Options['Tracers'] then
+					visuals.Options['Tracers'].Enabled = preset.tracers
+				end
+				if visuals.Options['Healthbars'] then
+					visuals.Options['Healthbars'].Enabled = preset.healthbars
+				end
+			end
+			
+			-- Movement settings
+			local movement = shared.vape.Categories.Movement
+			if movement and movement.Options then
+				if movement.Options['Speed'] then
+					movement.Options['Speed'].Enabled = preset.speedEnabled
+				end
+				if movement.Options['Nofall'] then
+					movement.Options['Nofall'].Enabled = preset.nofall
+				end
+				if movement.Options['Flight'] then
+					movement.Options['Flight'].Enabled = preset.flight
+				end
+			end
+			
+			-- Performance settings
+			local performance = shared.vape.Categories.Performance
+			if performance and performance.Options then
+				if performance.Options['Recoil Compensation'] then
+					performance.Options['Recoil Compensation'].Value = preset.recoilCompensation
+				end
+			end
+		end)
+	end
+	
+	closetMode.enabled = (presetName == 'closet')
+	return true
+end
+
+function closetMode.toggle()
+	if closetMode.enabled then
+		closetMode.applyPreset('blatant')
+		return 'Closet mode disabled - Blatant mode enabled'
+	else
+		closetMode.applyPreset('closet')
+		return 'Closet mode enabled - Legitimacy mode active'
+	end
+end
+
+function closetMode.getStatus()
+	return {
+		enabled = closetMode.enabled,
+		currentPreset = closetMode.enabled and 'closet' or 'blatant',
+		legitimacyMode = closetMode.enabled,
+	}
+end
+
+-- Apply closet mode on startup if enabled
+if getgenv().Closet then
+	closetMode.applyPreset('closet')
+end
+
+getgenv().closetMode = closetMode
+shared.closetMode = closetMode
+
 local function finishLoading()
 	vape.Init = nil
 	if not vape.Load then
@@ -92,6 +276,9 @@ local function finishLoading()
 			if shared.ValidatedUsername then
 				teleportScript = 'shared.ValidatedUsername = "' .. shared.ValidatedUsername .. '"\n' .. teleportScript
 			end
+			if getgenv().Closet then
+				teleportScript = 'getgenv().Closet = true\n' .. teleportScript
+			end
 			local _ok, _err = pcall(function() vape:Save() end)
 			if not _ok then warn('[R12SA V4] save failed before teleport: ' .. tostring(_err)) end
 			queue_on_teleport(teleportScript)
@@ -102,12 +289,13 @@ local function finishLoading()
 		if not vape.Categories then return end
 		if vape.Categories.Main.Options['GUI bind indicator'].Enabled then
 			local name = shared.ValidatedUsername and ('wsg, ' .. shared.ValidatedUsername .. ' :D ') or 'welcome '
+			local closetStatus = getgenv().Closet and ' [CLOSET MODE ACTIVE]' or ''
 			task.spawn(function()
 				local deadline = tick() + 15
 				while tick() < deadline do
 					task.wait(0.5)
 				end
-				vape:CreateNotification('[R12SA V4] Finished Loading', name .. (vape.VapeButton and 'Press the button in the top right to open GUI' or 'Press F5 to open GUI'), 10)
+				vape:CreateNotification('[R12SA V4] Finished Loading' .. closetStatus, name .. (vape.VapeButton and 'Press the button in the top right to open GUI' or 'Press F5 to open GUI'), 10)
 			end)
 		end
 	end
