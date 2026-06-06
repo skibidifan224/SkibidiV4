@@ -70,159 +70,191 @@ end
 --[[ ===== CLOSET MODE SYSTEM ===== ]]
 local closetMode = {}
 closetMode.enabled = getgenv().Closet or false
-closetMode.presets = {
-	-- Closet preset: Legitimate looking but competitive
-	closet = {
-		aimbotEnabled = true,
-		aimbotFOV = 25, -- Smaller FOV looks more natural
-		aimbotSmoothing = 0.8, -- High smoothing for natural movement
-		aimbotPrediction = true,
-		triggerbot = false, -- Too obvious
-		esp = false, -- Completely disabled for legitimacy
-		wallhack = false,
-		speedEnabled = false, -- Too obvious
-		nofall = false,
-		nowater = false,
-		flight = false,
-		hitboxExpander = false,
-		reachLimit = 3.5, -- Subtle reach increase
-		killAura = false, -- Way too obvious
-		nametags = false,
-		tracers = false,
-		healthbars = false,
-		blatantSettings = false,
-		recoilCompensation = 0.5, -- Subtle recoil smoothing
-		mouseSensitivity = 1.0, -- Natural sensitivity
-		humanoidRotation = 0.3, -- Subtle head jitter
+closetMode.modulesCache = {}
+
+-- Closet preset configuration: Legitimate looking but competitive
+closetMode.closetConfig = {
+	-- Aimbot settings (uses existing ProjectileAimbot module)
+	ProjectileAimbot = {
+		Enabled = true,
+		Part = 'Head',
+		FOV = 25, -- Small FOV looks natural
 	},
-	-- Blatant preset: Full power mode
-	blatant = {
-		aimbotEnabled = true,
-		aimbotFOV = 180,
-		aimbotSmoothing = 0.2,
-		aimbotPrediction = true,
-		triggerbot = true,
-		esp = true,
-		wallhack = true,
-		speedEnabled = true,
-		nofall = true,
-		nowater = true,
-		flight = true,
-		hitboxExpander = true,
-		reachLimit = 10,
-		killAura = true,
-		nametags = true,
-		tracers = true,
-		healthbars = true,
-		blatantSettings = true,
-		recoilCompensation = 1.0,
-		mouseSensitivity = 2.0,
-		humanoidRotation = 1.0,
-	}
+	
+	-- Aim assist for hitscan weapons
+	AimAssist = {
+		Enabled = true,
+		Part = 'Head',
+		FOV = 20,
+		Speed = 3.5, -- Slower = more natural
+	},
+	
+	-- Silent aim (subtle)
+	SilentAim = {
+		Enabled = true,
+		Range = 40, -- Slightly extended reach
+		HitChance = 85, -- Not 100% = looks human
+		HeadshotChance = 60,
+	},
+	
+	-- Combat modules
+	TriggerBot = {
+		Enabled = false, -- Too obvious for closet
+	},
+	
+	KillAura = {
+		Enabled = false, -- Way too obvious
+	},
+	
+	Reach = {
+		Enabled = false, -- Handle via SilentAim range instead
+	},
+	
+	-- Visuals (disabled for legitimacy)
+	ESP = {
+		Enabled = false,
+	},
+	
+	Wallhack = {
+		Enabled = false,
+	},
+	
+	Tracers = {
+		Enabled = false,
+	},
+	
+	HealthBars = {
+		Enabled = false,
+	},
+	
+	Nametags = {
+		Enabled = false,
+	},
+	
+	-- Movement (subtle)
+	Speed = {
+		Enabled = false,
+	},
+	
+	NoFall = {
+		Enabled = false,
+	},
+	
+	Flight = {
+		Enabled = false,
+	},
+	
+	-- Spider (useful for bedwars, not obvious)
+	Spider = {
+		Enabled = false,
+	},
+	
+	-- Anti-knockback (subtle advantage)
+	Disabler = {
+		Enabled = false, -- Can be detected
+	},
 }
 
-function closetMode.applyPreset(presetName)
-	if not closetMode.presets[presetName] then
-		warn('[R12SA V4] Invalid closet preset: ' .. presetName)
+-- Blatant preset: Full power mode
+closetMode.blatantConfig = {
+	ProjectileAimbot = { Enabled = true, Part = 'Head', FOV = 180 },
+	AimAssist = { Enabled = true, Part = 'Head', FOV = 180, Speed = 20 },
+	SilentAim = { Enabled = true, Range = 100, HitChance = 100, HeadshotChance = 100 },
+	TriggerBot = { Enabled = true },
+	KillAura = { Enabled = true },
+	Reach = { Enabled = true },
+	ESP = { Enabled = true },
+	Wallhack = { Enabled = true },
+	Tracers = { Enabled = true },
+	HealthBars = { Enabled = true },
+	Nametags = { Enabled = true },
+	Speed = { Enabled = true },
+	NoFall = { Enabled = true },
+	Flight = { Enabled = true },
+	Spider = { Enabled = true },
+	Disabler = { Enabled = true },
+}
+
+function closetMode.findModule(moduleName)
+	if not shared.vape or not shared.vape.Modules then
+		return nil
+	end
+	
+	for _, module in ipairs(shared.vape.Modules) do
+		if module.Name == moduleName then
+			return module
+		end
+	end
+	return nil
+end
+
+function closetMode.applyPreset(preset)
+	if not shared.vape then
+		warn('[R12SA V4] Vape not loaded yet')
 		return false
 	end
 	
-	local preset = closetMode.presets[presetName]
+	task.wait(0.5) -- Wait for modules to load
 	
-	-- Store original settings if not already stored
-	if not shared.vapeOriginalSettings then
-		shared.vapeOriginalSettings = {}
-	end
-	
-	-- Apply preset settings to all modules
-	for setting, value in pairs(preset) do
-		shared.vapeOriginalSettings[setting] = shared.vapeOriginalSettings[setting] or value
+	for moduleName, config in pairs(preset) do
+		local module = closetMode.findModule(moduleName)
 		
-		-- Store in global environment for access by modules
-		getgenv()[setting] = value
-		shared[setting] = value
+		if module then
+			-- Store original state
+			if not closetMode.modulesCache[moduleName] then
+				closetMode.modulesCache[moduleName] = {
+					enabled = module.Enabled,
+					options = {}
+				}
+			end
+			
+			-- Apply enabled state
+			if config.Enabled ~= nil then
+				if module.Enabled ~= config.Enabled then
+					module:Toggle()
+				end
+			end
+			
+			-- Apply options
+			if module.Options then
+				for optionName, optionValue in pairs(config) do
+					if optionName ~= 'Enabled' then
+						local option = module.Options[optionName]
+						if option then
+							-- Store original
+							if not closetMode.modulesCache[moduleName].options[optionName] then
+								if option.Value then
+									closetMode.modulesCache[moduleName].options[optionName] = option.Value
+								elseif option.Enabled ~= nil then
+									closetMode.modulesCache[moduleName].options[optionName] = option.Enabled
+								end
+							end
+							
+							-- Apply new value
+							if option.Value ~= nil then
+								option.Value = optionValue
+							elseif option.Enabled ~= nil then
+								option.Enabled = optionValue
+							end
+						end
+					end
+				end
+			end
+		end
 	end
 	
-	-- Apply to vape settings if vape is loaded
-	if shared.vape and shared.vape.Categories then
-		pcall(function()
-			-- Combat settings
-			local combat = shared.vape.Categories.Combat
-			if combat and combat.Options then
-				if combat.Options['Aimbot'] then
-					combat.Options['Aimbot'].Enabled = preset.aimbotEnabled
-				end
-				if combat.Options['Aimbot FOV'] then
-					combat.Options['Aimbot FOV'].Value = preset.aimbotFOV
-				end
-				if combat.Options['Aimbot Smoothing'] then
-					combat.Options['Aimbot Smoothing'].Value = preset.aimbotSmoothing
-				end
-				if combat.Options['Prediction'] then
-					combat.Options['Prediction'].Enabled = preset.aimbotPrediction
-				end
-				if combat.Options['Triggerbot'] then
-					combat.Options['Triggerbot'].Enabled = preset.triggerbot
-				end
-				if combat.Options['Reach'] then
-					combat.Options['Reach'].Value = preset.reachLimit
-				end
-			end
-			
-			-- Visuals settings
-			local visuals = shared.vape.Categories.Visuals
-			if visuals and visuals.Options then
-				if visuals.Options['ESP'] then
-					visuals.Options['ESP'].Enabled = preset.esp
-				end
-				if visuals.Options['Wallhack'] then
-					visuals.Options['Wallhack'].Enabled = preset.wallhack
-				end
-				if visuals.Options['Nametags'] then
-					visuals.Options['Nametags'].Enabled = preset.nametags
-				end
-				if visuals.Options['Tracers'] then
-					visuals.Options['Tracers'].Enabled = preset.tracers
-				end
-				if visuals.Options['Healthbars'] then
-					visuals.Options['Healthbars'].Enabled = preset.healthbars
-				end
-			end
-			
-			-- Movement settings
-			local movement = shared.vape.Categories.Movement
-			if movement and movement.Options then
-				if movement.Options['Speed'] then
-					movement.Options['Speed'].Enabled = preset.speedEnabled
-				end
-				if movement.Options['Nofall'] then
-					movement.Options['Nofall'].Enabled = preset.nofall
-				end
-				if movement.Options['Flight'] then
-					movement.Options['Flight'].Enabled = preset.flight
-				end
-			end
-			
-			-- Performance settings
-			local performance = shared.vape.Categories.Performance
-			if performance and performance.Options then
-				if performance.Options['Recoil Compensation'] then
-					performance.Options['Recoil Compensation'].Value = preset.recoilCompensation
-				end
-			end
-		end)
-	end
-	
-	closetMode.enabled = (presetName == 'closet')
+	closetMode.enabled = (preset == closetMode.closetConfig)
 	return true
 end
 
 function closetMode.toggle()
 	if closetMode.enabled then
-		closetMode.applyPreset('blatant')
+		closetMode.applyPreset(closetMode.blatantConfig)
+		vape:CreateNotification('[R12SA V4] Closet Mode', 'Switched to BLATANT mode', 5, 'info')
 		return 'Closet mode disabled - Blatant mode enabled'
 	else
-		closetMode.applyPreset('closet')
+		closetMode.applyPreset(closetMode.closetConfig)
+		vape:CreateNotification('[R12SA V4] Closet Mode', 'Switched to CLOSET mode', 5, 'info')
 		return 'Closet mode enabled - Legitimacy mode active'
 	end
 end
@@ -230,14 +262,16 @@ end
 function closetMode.getStatus()
 	return {
 		enabled = closetMode.enabled,
-		currentPreset = closetMode.enabled and 'closet' or 'blatant',
-		legitimacyMode = closetMode.enabled,
+		currentMode = closetMode.enabled and 'closet' or 'blatant',
 	}
 end
 
 -- Apply closet mode on startup if enabled
 if getgenv().Closet then
-	closetMode.applyPreset('closet')
+	task.spawn(function()
+		task.wait(2) -- Wait for full initialization
+		closetMode.applyPreset(closetMode.closetConfig)
+	end)
 end
 
 getgenv().closetMode = closetMode
@@ -289,7 +323,7 @@ local function finishLoading()
 		if not vape.Categories then return end
 		if vape.Categories.Main.Options['GUI bind indicator'].Enabled then
 			local name = shared.ValidatedUsername and ('wsg, ' .. shared.ValidatedUsername .. ' :D ') or 'welcome '
-			local closetStatus = getgenv().Closet and ' [CLOSET MODE ACTIVE]' or ''
+			local closetStatus = getgenv().Closet and ' [CLOSET MODE]' or ''
 			task.spawn(function()
 				local deadline = tick() + 15
 				while tick() < deadline do
